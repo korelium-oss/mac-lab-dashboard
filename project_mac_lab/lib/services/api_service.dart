@@ -119,6 +119,12 @@ class ApiService {
   static Future<void> screenPresentAll() async =>
       http.post(Uri.parse('$_base/screen/present-all'));
 
+  static Future<void> screenStopPresent(String host) async =>
+      http.post(Uri.parse('$_base/screen/stop-present/$host'));
+
+  static Future<void> screenStopPresentAll() async =>
+      http.post(Uri.parse('$_base/screen/stop-present-all'));
+
   // ---------------------------------------------------------------------------
   // BREW — STREAMING INSTALL
   // ---------------------------------------------------------------------------

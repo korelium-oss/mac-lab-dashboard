@@ -200,6 +200,16 @@ def screen_present_all():
     _run_bg([FISH, "-l", "-c", "mac-present"])
     return {"ok": True}
 
+@app.post("/screen/stop-present/{host}")
+def screen_stop_present(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    _run_bg([FISH, "-l", "-c", f"mac-stop-present-host {mac_id}"])
+    return {"ok": True}
+
+@app.post("/screen/stop-present-all")
+def screen_stop_present_all():
+    _run_bg([FISH, "-l", "-c", "mac-stop-present"])
+    return {"ok": True}
 
 @app.post("/emergency/kill")
 def emergency_kill():

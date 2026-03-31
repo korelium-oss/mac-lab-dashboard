@@ -491,6 +491,21 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.pinkAccent,
+                    disabledBackgroundColor: Colors.pinkAccent.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.cancel_presentation),
+                  label: const Text('Stop Present ALL'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () => confirmAndRun(
+                            'Stop Present ALL',
+                            'This will forcefully close the presentation screen on all machines.',
+                            () => ApiService.screenStopPresentAll(),
+                          ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey.shade700,
                     disabledBackgroundColor: Colors.grey.withOpacity(0.3),
                   ),
@@ -577,6 +592,22 @@ class _DashboardPageState extends State<DashboardPage> {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Presenting to ${selected.length} machine(s)...'))
+                        );
+                      }
+                      setState(() => selected.clear());
+                    },
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.cancel_presentation),
+                    label: Text('Stop Present (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
+                    onPressed: () async {
+                      for (final host in selected) {
+                        await ApiService.screenStopPresent(host);
+                      }
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Stopped presentation for ${selected.length} machine(s).'))
                         );
                       }
                       setState(() => selected.clear());
