@@ -102,6 +102,24 @@ class ApiService {
       );
 
   // ---------------------------------------------------------------------------
+  // SCREEN SHARING
+  // ---------------------------------------------------------------------------
+  static Future<void> screenSetup(String host) async =>
+      http.post(Uri.parse('$_base/screen/setup/$host'));
+
+  static Future<void> screenSetupAll() async =>
+      http.post(Uri.parse('$_base/screen/setup-all'));
+
+  static Future<void> screenMonitor(String host) async =>
+      http.post(Uri.parse('$_base/screen/monitor/$host'));
+
+  static Future<void> screenPresent(String host) async =>
+      http.post(Uri.parse('$_base/screen/present/$host'));
+
+  static Future<void> screenPresentAll() async =>
+      http.post(Uri.parse('$_base/screen/present-all'));
+
+  // ---------------------------------------------------------------------------
   // BREW — STREAMING INSTALL
   // ---------------------------------------------------------------------------
   static Future<Stream<String>> installStream({

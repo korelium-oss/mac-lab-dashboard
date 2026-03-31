@@ -16,7 +16,7 @@ class _DashboardPageState extends State<DashboardPage> {
   );
 
   final Set<String> selected = {};
-  Map<String, bool> status = {};
+  Map<String, bool> status = {'mac-022': true};
   bool loading = false;
   int onlineCount = 0;
   int offlineCount = 0;
@@ -31,6 +31,8 @@ class _DashboardPageState extends State<DashboardPage> {
     setState(() => loading = true);
     try {
       final newStatus = await ApiService.fetchStatus();
+      newStatus['mac-022'] = true; // Always online
+
       setState(() {
         status = newStatus;
         onlineCount = status.values.where((v) => v).length;
@@ -289,11 +291,12 @@ class _DashboardPageState extends State<DashboardPage> {
             children: [
               const Text('Select All'),
               Checkbox(
-                value: selected.length == machines.length,
+                value: selected.length == machines.length - 1 && !selected.contains('mac-022'),
                 onChanged: (v) {
                   setState(() {
                     if (v == true) {
                       selected.addAll(machines);
+                      selected.remove('mac-022'); // Protect Admin PC
                     } else {
                       selected.clear();
                     }
@@ -342,11 +345,22 @@ class _DashboardPageState extends State<DashboardPage> {
                 final online = status[name] ?? false;
                 final isSelected = selected.contains(name);
                 final gap = (i % 6 == 2) ? 18.0 : 6.0;
+                final isAdmin = name == 'mac-022';
 
                 return Padding(
                   padding: EdgeInsets.only(right: gap),
                   child: GestureDetector(
                     onTap: () {
+                      if (isAdmin) {
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('🛡️ Admin PC (mac-022) is protected and cannot be selected.'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        return;
+                      }
                       setState(() {
                         isSelected ? selected.remove(name) : selected.add(name);
                       });
@@ -370,9 +384,19 @@ class _DashboardPageState extends State<DashboardPage> {
                             : [],
                       ),
                       child: Center(
-                        child: Text(
-                          name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            if (isAdmin)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Text('Admin PC', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.yellowAccent)),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -450,6 +474,36 @@ class _DashboardPageState extends State<DashboardPage> {
                             () => ApiService.wakeAll(),
                           ),
                 ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    disabledBackgroundColor: Colors.deepPurple.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.desktop_mac),
+                  label: const Text('Present Screen'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () => confirmAndRun(
+                            'Present Screen to ALL',
+                            'This will push your Admin screen to every machine in the lab.',
+                            () => ApiService.screenPresentAll(),
+                          ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade700,
+                    disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.settings_ethernet),
+                  label: const Text('Setup VNC ALL'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () => confirmAndRun(
+                            'Setup Lab-wide Screen Sharing',
+                            'Enable VNC servers silently on ALL machines?',
+                            () => ApiService.screenSetupAll(),
+                          ),
+                ),
               ],
             ),
           ),
@@ -495,6 +549,53 @@ class _DashboardPageState extends State<DashboardPage> {
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.teal),
                     onPressed: () => showMessageDialog(forAll: false),
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.monitor),
+                    label: Text('View Screens (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan),
+                    onPressed: () async {
+                      for (final host in selected) {
+                        await ApiService.screenMonitor(host);
+                      }
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Opening VNC for ${selected.length} machine(s)...'))
+                        );
+                      }
+                      setState(() => selected.clear());
+                    },
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.desktop_mac),
+                    label: Text('Present (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                    onPressed: () async {
+                      for (final host in selected) {
+                        await ApiService.screenPresent(host);
+                      }
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Presenting to ${selected.length} machine(s)...'))
+                        );
+                      }
+                      setState(() => selected.clear());
+                    },
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.settings_ethernet),
+                    label: Text('Setup VNC (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.grey.shade700),
+                    onPressed: () => confirmAndRun(
+                      'Setup Screen Sharing',
+                      'Enable VNC server silently on ${selected.length} machine(s)?',
+                      () async {
+                        for (final host in selected) {
+                           await ApiService.screenSetup(host);
+                        }
+                        setState(() => selected.clear());
+                      }
+                    ),
                   ),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.clear),

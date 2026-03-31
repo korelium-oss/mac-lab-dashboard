@@ -44,6 +44,9 @@ def get_status():
                 machines[name.strip()] = "ONLINE" in rest
             except ValueError:
                 pass
+                
+    # Admin PC is the host machine, always online
+    machines["mac-022"] = True
 
     return {
         "machines": machines,
@@ -161,6 +164,40 @@ def alert_host(host: str, req: NotifyRequest):
 def alert_all(req: NotifyRequest):
     msg = shlex.quote(req.message)
     _run_bg([FISH, "-l", "-c", f"mac-all-alert {msg}"])
+    return {"ok": True}
+
+
+# ========================
+# SCREEN SHARING API
+# ========================
+
+@app.post("/screen/setup/{host}")
+def screen_setup(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    _run_bg([FISH, "-l", "-c", f"mac-screen-setup {mac_id}"])
+    return {"ok": True}
+
+@app.post("/screen/setup-all")
+def screen_setup_all():
+    _run_bg([FISH, "-l", "-c", "mac-all-screen-setup"])
+    return {"ok": True}
+
+@app.post("/screen/monitor/{host}")
+def screen_monitor(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    # Runs natively on the Admin PC where the backend is hosted
+    _run_bg([FISH, "-l", "-c", f"mac-monitor {mac_id}"])
+    return {"ok": True}
+
+@app.post("/screen/present/{host}")
+def screen_present(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    _run_bg([FISH, "-l", "-c", f"mac-present-host {mac_id}"])
+    return {"ok": True}
+
+@app.post("/screen/present-all")
+def screen_present_all():
+    _run_bg([FISH, "-l", "-c", "mac-present"])
     return {"ok": True}
 
 
