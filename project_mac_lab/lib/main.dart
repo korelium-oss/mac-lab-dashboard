@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/dashboard_page.dart';
 import 'screens/multi_install_page.dart';
+import 'screens/settings_page.dart';
 
 void main() {
   runApp(const MacLabApp());
@@ -30,7 +31,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int index = 0;
 
-  final pages = const [DashboardPage(), MultiInstallPage()];
+  final pages = const [DashboardPage(), MultiInstallPage(), SettingsPage()];
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +41,9 @@ class _HomePageState extends State<HomePage> {
         selectedIndex: index,
         onDestinationSelected: (i) => setState(() => index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.computer), label: "Lab"),
-          NavigationDestination(icon: Icon(Icons.download), label: "Software"),
+          NavigationDestination(icon: Icon(Icons.computer), label: 'Lab'),
+          NavigationDestination(icon: Icon(Icons.download), label: 'Software'),
+          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );

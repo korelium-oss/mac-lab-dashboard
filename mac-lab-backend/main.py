@@ -1,29 +1,49 @@
 from fastapi import FastAPI, HTTPException
-import subprocess, re, time, os
+import subprocess, re, time, os, shlex, threading
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
-import subprocess
-import os
 
 
 app = FastAPI()
 FISH = "/opt/homebrew/bin/fish"
 
+
+def _run_bg(cmd: list, timeout: int = 40):
+    """Run a shell command in a background daemon thread with a hard timeout.
+    Prevents zombie processes from stacking up when machines are offline."""
+    def _run():
+        try:
+            subprocess.run(cmd, timeout=timeout, capture_output=True)
+        except subprocess.TimeoutExpired:
+            pass  # process killed automatically after timeout
+        except Exception:
+            pass
+    threading.Thread(target=_run, daemon=True).start()
+
 @app.get("/status")
 def get_status():
-    result = subprocess.run(
-        [FISH, "-l", "-c", "mac-all status"],
-        capture_output=True,
-        text=True,
-        timeout=20
-    )
+    try:
+        result = subprocess.run(
+            [FISH, "-l", "-c", "mac-all status"],
+            capture_output=True,
+            text=True,
+            timeout=55
+        )
+        out = result.stdout
+    except subprocess.TimeoutExpired as e:
+        out = e.stdout.decode("utf-8") if isinstance(e.stdout, bytes) else (e.stdout or "")
+    except Exception:
+        out = ""
 
     machines = {}
-    for line in result.stdout.splitlines():
+    for line in out.splitlines():
         clean = re.sub(r'\x1B\[[0-9;]*m', '', line).strip()
         if clean.startswith("mac-"):
-            name, rest = clean.split(":", 1)
-            machines[name.strip()] = "ONLINE" in rest
+            try:
+                name, rest = clean.split(":", 1)
+                machines[name.strip()] = "ONLINE" in rest
+            except ValueError:
+                pass
 
     return {
         "machines": machines,
@@ -33,15 +53,15 @@ def get_status():
 
 @app.post("/reboot/{host}")
 def reboot_host(host: str):
-    full_host = f"ritmaclab@{host}.local"
-    subprocess.run(["ssh", full_host, "sudo", "reboot"])
+    mac_id = host.split("-")[-1] if "-" in host else host
+    subprocess.run([FISH, "-l", "-c", f"mac {mac_id} reboot"])
     return {"ok": True}
 
 
 @app.post("/shutdown/{host}")
 def shutdown_host(host: str):
-    full_host = f"ritmaclab@{host}.local"
-    subprocess.run(["ssh", full_host, "sudo", "shutdown", "-h", "now"])
+    mac_id = host.split("-")[-1] if "-" in host else host
+    subprocess.run([FISH, "-l", "-c", f"mac {mac_id} down"])
     return {"ok": True}
 
 
@@ -57,6 +77,100 @@ def shutdown_all():
     return {"ok": True}
 
 
+@app.post("/sleep/{host}")
+def sleep_host(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    subprocess.run([FISH, "-l", "-c", f"mac {mac_id} sleep"])
+    return {"ok": True}
+
+
+@app.post("/sleep-all")
+def sleep_all():
+    subprocess.run([FISH, "-l", "-c", "mac-all sleep"])
+    return {"ok": True}
+
+
+@app.post("/wake/{host}")
+def wake_host(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    _run_bg([FISH, "-l", "-c", f"mac-wake {mac_id}"])
+    return {"ok": True}
+
+
+@app.post("/wake-all")
+def wake_all():
+    _run_bg([FISH, "-l", "-c", "mac-all-wake"])
+    return {"ok": True}
+
+
+class PkgRequest(BaseModel):
+    type: str   # "cask" or "formula"
+    name: str
+
+
+@app.post("/pkg/remove/{id}")
+def pkg_remove(id: int, req: PkgRequest):
+    num = str(id).zfill(3)
+    host = f"mac-{num}"
+    cmd = f"mac-pkg-remove {id} {req.type} {req.name}"
+    try:
+        result = subprocess.run(
+            [FISH, "-l", "-c", cmd],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        return {
+            "host": host,
+            "ok": result.returncode == 0,
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class NotifyRequest(BaseModel):
+    message: str
+
+
+@app.post("/notify/{host}")
+def notify_host(host: str, req: NotifyRequest):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    msg = shlex.quote(req.message)
+    _run_bg([FISH, "-l", "-c", f"mac-notify {mac_id} {msg}"])
+    return {"ok": True}
+
+
+@app.post("/notify-all")
+def notify_all(req: NotifyRequest):
+    msg = shlex.quote(req.message)
+    _run_bg([FISH, "-l", "-c", f"mac-all-notify {msg}"])
+    return {"ok": True}
+
+
+@app.post("/alert/{host}")
+def alert_host(host: str, req: NotifyRequest):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    msg = shlex.quote(req.message)
+    _run_bg([FISH, "-l", "-c", f"mac-alert {mac_id} {msg}"])
+    return {"ok": True}
+
+
+@app.post("/alert-all")
+def alert_all(req: NotifyRequest):
+    msg = shlex.quote(req.message)
+    _run_bg([FISH, "-l", "-c", f"mac-all-alert {msg}"])
+    return {"ok": True}
+
+
+@app.post("/emergency/kill")
+def emergency_kill():
+    """Kill all hanging SSH and brew processes across the lab."""
+    subprocess.run([FISH, "-l", "-c", "mac-kill-all"], capture_output=True, timeout=10)
+    return {"ok": True}
+
+
 class BrewRequest(BaseModel):
     type: str   # "cask" or "formula"
     name: str   # "firefox", "iterm2", "visual-studio-code", etc.
@@ -66,11 +180,11 @@ def brew_install(id: int, req: BrewRequest):
     num = str(id).zfill(3)
     host = f"mac-{num}"
 
-    cmd = f"mac-brew mac {id} {req.type} {req.name}"
+    cmd = f"mac-pkg {id} {req.type} {req.name}"
 
     try:
         result = subprocess.run(
-            ["/opt/homebrew/bin/fish", "-c", cmd],
+            [FISH, "-l", "-c", cmd],
             capture_output=True,
             text=True,
             timeout=600
@@ -148,4 +262,4 @@ def stop_brew(mac_id: str):
     if proc and proc.poll() is None:
         proc.kill()
         return {"ok": True, "msg": f"{host} stopped"}
-    return {"ok": False, "msg": "No running job"}
+    return {"ok": False, "msg": "No running job"} 

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../services/brew_services.dart';
-import 'package:http/http.dart' as http;
+import '../services/api_service.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -17,54 +16,38 @@ class _DashboardPageState extends State<DashboardPage> {
   );
 
   final Set<String> selected = {};
-
   Map<String, bool> status = {};
   bool loading = false;
-
-  // ✅ STATUS COUNTERS
   int onlineCount = 0;
   int offlineCount = 0;
-
-  int countdown = 20;
-  Timer? timer;
 
   @override
   void initState() {
     super.initState();
-    startRefresh();
-  }
-
-  void startRefresh() {
-    countdown = 20;
-    timer?.cancel();
-
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      setState(() => countdown--);
-
-      if (countdown == 0) {
-        t.cancel();
-        fetchStatus();
-      }
-    });
-
     fetchStatus();
   }
 
-  // ========================
-  // FETCH STATUS
-  // ========================
   Future<void> fetchStatus() async {
     setState(() => loading = true);
-
     try {
-      status = await BrewService.fetchStatus();
-
-      // ✅ COUNT ONLINE / OFFLINE
-      onlineCount = status.values.where((v) => v).length;
-      offlineCount = status.values.where((v) => !v).length;
-    } catch (_) {}
-
-    setState(() => loading = false);
+      final newStatus = await ApiService.fetchStatus();
+      setState(() {
+        status = newStatus;
+        onlineCount = status.values.where((v) => v).length;
+        offlineCount = status.values.where((v) => !v).length;
+      });
+    } catch (e, st) {
+      debugPrint('Error fetching status: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching status: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
+    }
   }
 
   // ========================
@@ -83,65 +66,166 @@ class _DashboardPageState extends State<DashboardPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("OK"),
+            child: const Text('OK'),
           ),
         ],
       ),
     );
-
     if (ok == true) await action();
   }
 
   // ========================
-  // REBOOT
+  // NOTIFY / ALERT DIALOG
+  // ========================
+  Future<void> showMessageDialog({required bool forAll}) async {
+    final msgController = TextEditingController();
+    bool withSound = false;
+
+    final targets = forAll ? 'ALL machines' : '${selected.length} selected';
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, dialogSetState) => AlertDialog(
+          title: Text('📢 Send Message to $targets'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: msgController,
+                autofocus: true,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Message',
+                  hintText: 'Class starts in 5 minutes...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                value: withSound,
+                title: const Text('🔔 With Sound Alert'),
+                subtitle: const Text('Plays a sound on target machines'),
+                onChanged: (v) => dialogSetState(() => withSound = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              icon: Icon(withSound ? Icons.volume_up : Icons.notifications),
+              label: const Text('Send'),
+              onPressed: () => Navigator.pop(ctx, {
+                'message': msgController.text.trim(),
+                'sound': withSound,
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null || (result['message'] as String).isEmpty) return;
+
+    final message = result['message'] as String;
+    final sound = result['sound'] as bool;
+
+    if (forAll) {
+      sound
+          ? await ApiService.alertAll(message)
+          : await ApiService.notifyAll(message);
+    } else {
+      for (final mac in selected) {
+        sound
+            ? await ApiService.alertHost(mac, message)
+            : await ApiService.notifyHost(mac, message);
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${sound ? '🔔 Alert' : '📢 Notification'} sent to $targets'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // ========================
+  // POWER ACTIONS
   // ========================
   Future<void> rebootSelected() async {
     await confirmAndRun(
-      "Reboot Selected",
-      "Reboot ${selected.length} machines?\n\n${selected.join(", ")}",
+      'Reboot Selected',
+      'Reboot ${selected.length} machines?\n\n${selected.join(", ")}',
       () async {
         for (final mac in selected) {
-          await http.post(Uri.parse("http://admin-pc.local:8000/reboot/$mac"));
+          await ApiService.reboot(mac);
         }
-
         selected.clear();
         fetchStatus();
       },
     );
   }
 
-  // ========================
-  // SHUTDOWN
-  // ========================
   Future<void> shutdownSelected() async {
     await confirmAndRun(
-      "Shutdown Selected",
-      "Shutdown ${selected.length} machines?\n\n${selected.join(", ")}",
+      'Shutdown Selected',
+      'Shutdown ${selected.length} machines?\n\n${selected.join(", ")}',
       () async {
         for (final mac in selected) {
-          await http.post(
-            Uri.parse("http://admin-pc.local:8000/shutdown/$mac"),
-          );
+          await ApiService.shutdown(mac);
         }
-
         selected.clear();
         fetchStatus();
       },
     );
+  }
+
+  Future<void> sleepSelected() async {
+    await confirmAndRun(
+      'Sleep Selected',
+      'Put ${selected.length} machine(s) to sleep?\n\n${selected.join(", ")}',
+      () async {
+        for (final mac in selected) {
+          await ApiService.sleep(mac);
+        }
+        selected.clear();
+        fetchStatus();
+      },
+    );
+  }
+
+  Future<void> wakeSelected() async {
+    for (final mac in selected) {
+      await ApiService.wake(mac);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⚡ Wake-on-LAN sent to ${selected.length} machine(s)'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    setState(() => selected.clear());
   }
 
   @override
   void dispose() {
-    timer?.cancel();
     super.dispose();
   }
 
   // ========================
-  // STATUS BOX UI
+  // STATUS BOX
   // ========================
   Widget _statusBox(String label, int count, Color color) {
     return Container(
@@ -176,11 +260,34 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Mac Lab Dashboard"),
+        title: const Text('Mac Lab Dashboard'),
         actions: [
+          // Emergency: kill all zombie SSH/notify processes
+          IconButton(
+            tooltip: '🛑 Kill zombie processes',
+            icon: const Icon(Icons.dangerous, color: Colors.redAccent),
+            onPressed: () async {
+              await ApiService.killAll();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('🛑 All hanging SSH/notify processes killed'),
+                    backgroundColor: Colors.red,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            },
+          ),
+          // Notify ALL button
+          IconButton(
+            tooltip: 'Send message to ALL',
+            icon: const Icon(Icons.campaign),
+            onPressed: () => showMessageDialog(forAll: true),
+          ),
           Row(
             children: [
-              const Text("Select All"),
+              const Text('Select All'),
               Checkbox(
                 value: selected.length == machines.length,
                 onChanged: (v) {
@@ -194,8 +301,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 },
               ),
               IconButton(
+                tooltip: 'Refresh',
                 icon: const Icon(Icons.refresh),
-                onPressed: startRefresh,
+                onPressed: fetchStatus,
               ),
             ],
           ),
@@ -206,24 +314,20 @@ class _DashboardPageState extends State<DashboardPage> {
         children: [
           if (loading) const LinearProgressIndicator(),
 
-          // ========================
-          // STATUS SUMMARY BAR
-          // ========================
+          // STATUS SUMMARY
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _statusBox("ONLINE", onlineCount, Colors.green),
-                _statusBox("OFFLINE", offlineCount, Colors.red),
-                _statusBox("TOTAL", machines.length, Colors.blue),
+                _statusBox('ONLINE', onlineCount, Colors.green),
+                _statusBox('OFFLINE', offlineCount, Colors.red),
+                _statusBox('TOTAL', machines.length, Colors.blue),
               ],
             ),
           ),
 
-          // ========================
-          // GRID
-          // ========================
+          // MACHINE GRID
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(12),
@@ -278,13 +382,13 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
 
-          // ========================
           // GLOBAL CONTROLS
-          // ========================
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
               children: [
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
@@ -292,16 +396,14 @@ class _DashboardPageState extends State<DashboardPage> {
                     disabledBackgroundColor: Colors.orange.withOpacity(0.3),
                   ),
                   icon: const Icon(Icons.restart_alt),
-                  label: const Text("Reboot ALL"),
+                  label: const Text('Reboot ALL'),
                   onPressed: selected.isNotEmpty
                       ? null
                       : () => confirmAndRun(
-                          "Reboot Lab",
-                          "Reboot ALL Macs?",
-                          () => http.post(
-                            Uri.parse("http://admin-pc.local:8000/reboot-all"),
+                            'Reboot Lab',
+                            'Reboot ALL Macs?',
+                            () => ApiService.rebootAll(),
                           ),
-                        ),
                 ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
@@ -309,48 +411,94 @@ class _DashboardPageState extends State<DashboardPage> {
                     disabledBackgroundColor: Colors.red.withOpacity(0.3),
                   ),
                   icon: const Icon(Icons.power_settings_new),
-                  label: const Text("Shutdown ALL"),
+                  label: const Text('Shutdown ALL'),
                   onPressed: selected.isNotEmpty
                       ? null
                       : () => confirmAndRun(
-                          "Shutdown Lab",
-                          "Shutdown ALL Macs?",
-                          () => http.post(
-                            Uri.parse(
-                              "http://admin-pc.local:8000/shutdown-all",
-                            ),
+                            'Shutdown Lab',
+                            'Shutdown ALL Macs?',
+                            () => ApiService.shutdownAll(),
                           ),
-                        ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    disabledBackgroundColor: Colors.indigo.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.bedtime),
+                  label: const Text('Sleep ALL'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () => confirmAndRun(
+                            'Sleep Lab',
+                            'Put ALL Macs to sleep?',
+                            () => ApiService.sleepAll(),
+                          ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.shade700,
+                    disabledBackgroundColor: Colors.amber.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.bolt),
+                  label: const Text('Wake ALL'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () => confirmAndRun(
+                            'Wake Lab',
+                            'Send Wake-on-LAN to ALL Macs?',
+                            () => ApiService.wakeAll(),
+                          ),
                 ),
               ],
             ),
           ),
 
-          // ========================
           // SELECTED CONTROLS
-          // ========================
           if (selected.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
                 children: [
                   ElevatedButton.icon(
                     icon: const Icon(Icons.restart_alt),
-                    label: Text("Reboot (${selected.length})"),
+                    label: Text('Reboot (${selected.length})'),
                     onPressed: rebootSelected,
                   ),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.power_settings_new),
-                    label: Text("Shutdown (${selected.length})"),
+                    label: Text('Shutdown (${selected.length})'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    ),
+                        backgroundColor: Colors.red),
                     onPressed: shutdownSelected,
                   ),
                   ElevatedButton.icon(
+                    icon: const Icon(Icons.bedtime),
+                    label: Text('Sleep (${selected.length})'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.indigo),
+                    onPressed: sleepSelected,
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.bolt),
+                    label: Text('Wake (${selected.length})'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber.shade700),
+                    onPressed: wakeSelected,
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.campaign),
+                    label: Text('Notify (${selected.length})'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal),
+                    onPressed: () => showMessageDialog(forAll: false),
+                  ),
+                  ElevatedButton.icon(
                     icon: const Icon(Icons.clear),
-                    label: const Text("Clear"),
+                    label: const Text('Clear'),
                     onPressed: () => setState(() => selected.clear()),
                   ),
                 ],
