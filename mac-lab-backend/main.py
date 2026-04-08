@@ -182,6 +182,18 @@ def screen_setup_all():
     _run_bg([FISH, "-l", "-c", "mac-all-screen-setup"])
     return {"ok": True}
 
+@app.post("/screen/fix/{host}")
+def screen_fix(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    _run_bg([FISH, "-l", "-c", f"mac-screen-fix {mac_id}"])
+    return {"ok": True}
+
+@app.post("/screen/fix-all")
+def screen_fix_all():
+    _run_bg([FISH, "-l", "-c", "mac-all-screen-fix"])
+    return {"ok": True}
+
+
 @app.post("/screen/monitor/{host}")
 def screen_monitor(host: str):
     mac_id = host.split("-")[-1] if "-" in host else host
@@ -210,6 +222,67 @@ def screen_stop_present(host: str):
 def screen_stop_present_all():
     _run_bg([FISH, "-l", "-c", "mac-stop-present"])
     return {"ok": True}
+
+# ========================
+# AUTO-LOGIN API
+# ========================
+
+class AutoLoginRequest(BaseModel):
+    password: str
+
+@app.post("/admin/autologin/on/{host}")
+def autologin_on(host: str, req: AutoLoginRequest):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    password = shlex.quote(req.password)
+    _run_bg([FISH, "-l", "-c", f"mac-autologin-on {mac_id} {password}"])
+    return {"ok": True}
+
+@app.post("/admin/autologin/on-all")
+def autologin_on_all(req: AutoLoginRequest):
+    password = shlex.quote(req.password)
+    _run_bg([FISH, "-l", "-c", f"mac-all-autologin-on {password}"])
+    return {"ok": True}
+
+@app.post("/admin/autologin/off/{host}")
+def autologin_off(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    _run_bg([FISH, "-l", "-c", f"mac-autologin-off {mac_id}"])
+    return {"ok": True}
+
+@app.post("/admin/autologin/off-all")
+def autologin_off_all():
+    _run_bg([FISH, "-l", "-c", "mac-all-autologin-off"])
+    return {"ok": True}
+
+@app.get("/admin/autologin/status")
+def autologin_status():
+    """Get autologin status for all machines natively."""
+    try:
+        result = subprocess.run(
+            [FISH, "-l", "-c", "mac-all-autologin-status"],
+            capture_output=True,
+            text=True,
+            timeout=55
+        )
+        out = result.stdout
+    except subprocess.TimeoutExpired as e:
+        out = e.stdout.decode("utf-8") if isinstance(e.stdout, bytes) else (e.stdout or "")
+    except Exception:
+        out = ""
+
+    statuses = {}
+    for line in out.splitlines():
+        clean = re.sub(r'\x1B\[[0-9;]*m', '', line).strip()
+        if clean.startswith("mac-"):
+            try:
+                name, rest = clean.split(":", 1)
+                statuses[name.strip()] = "ON" in rest
+            except ValueError:
+                pass
+
+    return {"statuses": statuses}
+
+
 
 @app.post("/emergency/kill")
 def emergency_kill():

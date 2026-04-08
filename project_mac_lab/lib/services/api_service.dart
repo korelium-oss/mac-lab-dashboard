@@ -109,6 +109,13 @@ class ApiService {
 
   static Future<void> screenSetupAll() async =>
       http.post(Uri.parse('$_base/screen/setup-all'));
+  
+  static Future<void> screenFix(String host) async =>
+      http.post(Uri.parse('$_base/screen/fix/$host'));
+
+  static Future<void> screenFixAll() async =>
+      http.post(Uri.parse('$_base/screen/fix-all'));
+
 
   static Future<void> screenMonitor(String host) async =>
       http.post(Uri.parse('$_base/screen/monitor/$host'));
@@ -124,6 +131,38 @@ class ApiService {
 
   static Future<void> screenStopPresentAll() async =>
       http.post(Uri.parse('$_base/screen/stop-present-all'));
+
+  // ---------------------------------------------------------------------------
+  // AUTO-LOGIN
+  // ---------------------------------------------------------------------------
+  static Future<void> autologinOn(String host, String password) async =>
+      http.post(Uri.parse('$_base/admin/autologin/on/$host'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'password': password}));
+
+  static Future<void> autologinOnAll(String password) async =>
+      http.post(Uri.parse('$_base/admin/autologin/on-all'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'password': password}));
+
+  static Future<void> autologinOff(String host) async =>
+      http.post(Uri.parse('$_base/admin/autologin/off/$host'));
+
+  static Future<void> autologinOffAll() async =>
+      http.post(Uri.parse('$_base/admin/autologin/off-all'));
+
+  static Future<Map<String, dynamic>> fetchAutologinStatus() async {
+    try {
+      final res = await http.get(Uri.parse('$_base/admin/autologin/status'));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body)['statuses'] ?? {};
+      }
+    } catch (e) {
+      print("Autologin status error: \$e");
+    }
+    return {};
+  }
+
 
   // ---------------------------------------------------------------------------
   // BREW — STREAMING INSTALL

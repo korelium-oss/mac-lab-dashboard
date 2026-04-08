@@ -162,6 +162,56 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   // ========================
+  // PASSWORD PROMPT DIALOG
+  // ========================
+  Future<String?> showPasswordPrompt(String title) async {
+    final passController = TextEditingController();
+    bool _obscure = true;
+
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, dialogSetState) => AlertDialog(
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Enter the password for the target user:'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passController,
+                autofocus: true,
+                obscureText: _obscure,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => dialogSetState(() => _obscure = !_obscure),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final text = passController.text.trim();
+                if (text.isNotEmpty) Navigator.pop(ctx, text);
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ========================
   // POWER ACTIONS
   // ========================
   Future<void> rebootSelected() async {
@@ -506,20 +556,57 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey.shade700,
-                    disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                    backgroundColor: Colors.blueGrey,
+                    disabledBackgroundColor: Colors.blueGrey.withOpacity(0.3),
                   ),
-                  icon: const Icon(Icons.settings_ethernet),
-                  label: const Text('Setup VNC ALL'),
+                  icon: const Icon(Icons.build),
+                  label: const Text('Fix VNC ALL'),
                   onPressed: selected.isNotEmpty
                       ? null
                       : () => confirmAndRun(
-                            'Setup Lab-wide Screen Sharing',
-                            'Enable VNC servers silently on ALL machines?',
-                            () => ApiService.screenSetupAll(),
+                            'Fix Lab-wide Screen Sharing',
+                            'This will forcefully restart Screen Sharing on ALL machines to resolve "not permitted" errors. Sessions will be disconnected.',
+                            () => ApiService.screenFixAll(),
+                          ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade700,
+                    disabledBackgroundColor: Colors.green.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.login),
+                  label: const Text('Auto-Login ALL'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () async {
+                          final pass = await showPasswordPrompt('Enable Auto-Login Lab-wide');
+                          if (pass != null) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Deploying auto-login to all machines...'))
+                              );
+                            }
+                            await ApiService.autologinOnAll(pass);
+                          }
+                        },
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.brown,
+                    disabledBackgroundColor: Colors.brown.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.no_accounts),
+                  label: const Text('Disable Auto-Login ALL'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () => confirmAndRun(
+                            'Disable Auto-Login',
+                            'Disable auto-login lab-wide?',
+                            () => ApiService.autologinOffAll(),
                           ),
                 ),
               ],
+
             ),
           ),
 
@@ -629,10 +716,60 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   ElevatedButton.icon(
+                    icon: const Icon(Icons.build),
+                    label: Text('Fix VNC (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
+                    onPressed: () => confirmAndRun(
+                      'Fix Screen Sharing',
+                      'Forcefully restart Screen Sharing on ${selected.length} machine(s)?',
+                      () async {
+                        for (final host in selected) {
+                           await ApiService.screenFix(host);
+                        }
+                        setState(() => selected.clear());
+                      }
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.login),
+                    label: Text('Auto-Login (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700),
+                    onPressed: () async {
+                      final pass = await showPasswordPrompt('Enable Auto-Login');
+                      if (pass != null) {
+                        for (final host in selected) {
+                          await ApiService.autologinOn(host, pass);
+                        }
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Enabled auto-login for ${selected.length} machine(s).'))
+                          );
+                        }
+                        setState(() => selected.clear());
+                      }
+                    },
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.no_accounts),
+                    label: Text('Disable Auto-Login (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
+                    onPressed: () => confirmAndRun(
+                      'Disable Auto-Login',
+                      'Disable auto-login for ${selected.length} machine(s)?',
+                      () async {
+                        for (final host in selected) {
+                           await ApiService.autologinOff(host);
+                        }
+                        setState(() => selected.clear());
+                      }
+                    ),
+                  ),
+                  ElevatedButton.icon(
                     icon: const Icon(Icons.clear),
                     label: const Text('Clear'),
                     onPressed: () => setState(() => selected.clear()),
                   ),
+
                 ],
               ),
             ),
