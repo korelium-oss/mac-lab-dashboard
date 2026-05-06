@@ -291,6 +291,115 @@ def emergency_kill():
     return {"ok": True}
 
 
+# ========================
+# USER MANAGEMENT API
+# ========================
+
+class UserCreateRequest(BaseModel):
+    username: str
+    password: str
+    admin: bool = False
+
+class UserDeleteRequest(BaseModel):
+    username: str
+
+@app.post("/user/create/{host}")
+def user_create(host: str, req: UserCreateRequest):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    cmd = f"mac-user-create{'-admin' if req.admin else ''} {mac_id} {shlex.quote(req.username)} {shlex.quote(req.password)}"
+    try:
+        result = subprocess.run(
+            [FISH, "-l", "-c", cmd],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return {
+            "ok": result.returncode == 0,
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/user/create-all")
+def user_create_all(req: UserCreateRequest):
+    cmd = f"mac-all-user-create{'-admin' if req.admin else ''} {shlex.quote(req.username)} {shlex.quote(req.password)}"
+    _run_bg([FISH, "-l", "-c", cmd], timeout=120)
+    return {"ok": True}
+
+@app.post("/user/delete/{host}")
+def user_delete(host: str, req: UserDeleteRequest):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    cmd = f"mac-user-delete {mac_id} {shlex.quote(req.username)}"
+    try:
+        result = subprocess.run(
+            [FISH, "-l", "-c", cmd],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        return {
+            "ok": result.returncode == 0,
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/user/delete-all")
+def user_delete_all(req: UserDeleteRequest):
+    cmd = f"mac-all-user-delete {shlex.quote(req.username)}"
+    _run_bg([FISH, "-l", "-c", cmd], timeout=120)
+    return {"ok": True}
+
+@app.get("/user/list/{host}")
+def user_list(host: str):
+    mac_id = host.split("-")[-1] if "-" in host else host
+    try:
+        result = subprocess.run(
+            [FISH, "-l", "-c", f"mac-user-list {mac_id}"],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        users = [
+            line.strip() for line in result.stdout.splitlines()
+            if line.strip() and not line.startswith("📋")
+        ]
+        return {"host": f"mac-{mac_id.zfill(3)}", "users": users}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/user/list-all")
+def user_list_all():
+    try:
+        result = subprocess.run(
+            [FISH, "-l", "-c", "mac-all-user-list"],
+            capture_output=True,
+            text=True,
+            timeout=55
+        )
+        out = result.stdout
+    except subprocess.TimeoutExpired as e:
+        out = e.stdout.decode("utf-8") if isinstance(e.stdout, bytes) else (e.stdout or "")
+    except Exception:
+        out = ""
+
+    users_map = {}
+    for line in out.splitlines():
+        clean = re.sub(r'\x1B\[[0-9;]*m', '', line).strip()
+        if ":" in clean and clean.startswith("mac-"):
+            try:
+                name, rest = clean.split(":", 1)
+                user_list = [u.strip() for u in rest.strip().split(",") if u.strip()]
+                users_map[name.strip()] = user_list
+            except ValueError:
+                pass
+
+    return {"users": users_map}
+
+
 class BrewRequest(BaseModel):
     type: str   # "cask" or "formula"
     name: str   # "firefox", "iterm2", "visual-studio-code", etc.

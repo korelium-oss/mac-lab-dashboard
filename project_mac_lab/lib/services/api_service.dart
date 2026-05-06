@@ -184,4 +184,62 @@ class ApiService {
   // ---------------------------------------------------------------------------
   static Future<void> stopInstall(String macId) async =>
       http.post(Uri.parse('$_base/brew/stop/$macId'));
+
+  // ---------------------------------------------------------------------------
+  // USER MANAGEMENT
+  // ---------------------------------------------------------------------------
+  static Future<void> createUser(String host, String username, String password,
+      {bool admin = false}) async =>
+      http.post(
+        Uri.parse('$_base/user/create/$host'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+          'admin': admin,
+        }),
+      );
+
+  static Future<void> createUserAll(String username, String password,
+      {bool admin = false}) async =>
+      http.post(
+        Uri.parse('$_base/user/create-all'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+          'admin': admin,
+        }),
+      );
+
+  static Future<void> deleteUser(String host, String username) async =>
+      http.post(
+        Uri.parse('$_base/user/delete/$host'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username}),
+      );
+
+  static Future<void> deleteUserAll(String username) async =>
+      http.post(
+        Uri.parse('$_base/user/delete-all'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username}),
+      );
+
+  static Future<List<String>> listUsers(String host) async {
+    final res = await http
+        .get(Uri.parse('$_base/user/list/$host'))
+        .timeout(const Duration(seconds: 20));
+    final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+    return List<String>.from(decoded['users'] ?? []);
+  }
+
+  static Future<Map<String, List<String>>> listUsersAll() async {
+    final res = await http
+        .get(Uri.parse('$_base/user/list-all'))
+        .timeout(const Duration(seconds: 60));
+    final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+    final raw = decoded['users'] as Map<String, dynamic>? ?? {};
+    return raw.map((k, v) => MapEntry(k, List<String>.from(v)));
+  }
 }

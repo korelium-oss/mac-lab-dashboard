@@ -212,6 +212,178 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   // ========================
+  // CREATE USER DIALOG
+  // ========================
+  Future<void> showCreateUserDialog({required bool forAll}) async {
+    final userController = TextEditingController();
+    final passController = TextEditingController();
+    bool isAdmin = false;
+    bool obscure = true;
+
+    final targets = forAll ? 'ALL machines' : '${selected.length} selected';
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, dialogSetState) => AlertDialog(
+          title: Text('👤 Create User on $targets'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: userController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  hintText: 'student',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passController,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => dialogSetState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                value: isAdmin,
+                title: const Text('🔑 Admin User'),
+                subtitle: const Text('Grant administrator privileges'),
+                onChanged: (v) => dialogSetState(() => isAdmin = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.person_add),
+              label: const Text('Create'),
+              onPressed: () {
+                final user = userController.text.trim();
+                final pass = passController.text.trim();
+                if (user.isNotEmpty && pass.isNotEmpty) {
+                  Navigator.pop(ctx, {
+                    'username': user,
+                    'password': pass,
+                    'admin': isAdmin,
+                  });
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+
+    final username = result['username'] as String;
+    final password = result['password'] as String;
+    final admin = result['admin'] as bool;
+
+    if (forAll) {
+      await ApiService.createUserAll(username, password, admin: admin);
+    } else {
+      for (final mac in selected) {
+        await ApiService.createUser(mac, username, password, admin: admin);
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('👤 User "$username" creation sent to $targets'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // ========================
+  // DELETE USER DIALOG
+  // ========================
+  Future<void> showDeleteUserDialog({required bool forAll}) async {
+    final userController = TextEditingController();
+
+    final targets = forAll ? 'ALL machines' : '${selected.length} selected';
+
+    final username = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('🗑️ Delete User from $targets'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '⚠️ This will permanently delete the user and wipe their home directory.',
+              style: TextStyle(color: Colors.orangeAccent, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: userController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Username to delete',
+                hintText: 'student',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person_remove, color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.delete_forever),
+            label: const Text('Delete'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              final user = userController.text.trim();
+              if (user.isNotEmpty) Navigator.pop(ctx, user);
+            },
+          ),
+        ],
+      ),
+    );
+
+    if (username == null || username.isEmpty) return;
+
+    if (forAll) {
+      await ApiService.deleteUserAll(username);
+    } else {
+      for (final mac in selected) {
+        await ApiService.deleteUser(mac, username);
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🗑️ User "$username" deletion sent to $targets'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // ========================
   // POWER ACTIONS
   // ========================
   Future<void> rebootSelected() async {
@@ -605,6 +777,28 @@ class _DashboardPageState extends State<DashboardPage> {
                             () => ApiService.autologinOffAll(),
                           ),
                 ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.cyan.shade700,
+                    disabledBackgroundColor: Colors.cyan.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Create User ALL'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () => showCreateUserDialog(forAll: true),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade900,
+                    disabledBackgroundColor: Colors.red.withOpacity(0.3),
+                  ),
+                  icon: const Icon(Icons.person_remove),
+                  label: const Text('Delete User ALL'),
+                  onPressed: selected.isNotEmpty
+                      ? null
+                      : () => showDeleteUserDialog(forAll: true),
+                ),
               ],
 
             ),
@@ -763,6 +957,18 @@ class _DashboardPageState extends State<DashboardPage> {
                         setState(() => selected.clear());
                       }
                     ),
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.person_add),
+                    label: Text('Create User (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan.shade700),
+                    onPressed: () => showCreateUserDialog(forAll: false),
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.person_remove),
+                    label: Text('Delete User (${selected.length})'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
+                    onPressed: () => showDeleteUserDialog(forAll: false),
                   ),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.clear),
