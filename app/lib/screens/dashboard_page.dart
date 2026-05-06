@@ -539,92 +539,139 @@ class _DashboardPageState extends State<DashboardPage> {
         children: [
           if (loading) const LinearProgressIndicator(),
 
-          // STATUS SUMMARY
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _statusBox('ONLINE', onlineCount, Colors.green),
-                _statusBox('OFFLINE', offlineCount, Colors.red),
-                _statusBox('TOTAL', machines.length, Colors.blue),
-              ],
-            ),
-          ),
-
-          // MACHINE GRID
+          // MACHINE GRID & SUMMARY
           Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 6,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-              ),
-              itemCount: machines.length,
-              itemBuilder: (context, i) {
-                final name = machines[i];
-                final online = status[name] ?? false;
-                final isSelected = selected.contains(name);
-                final gap = (i % 6 == 2) ? 18.0 : 6.0;
-                final isAdmin = name == 'mac-022';
-
-                return Padding(
-                  padding: EdgeInsets.only(right: gap),
-                  child: GestureDetector(
-                    onTap: () {
-                      if (isAdmin) {
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('🛡️ Admin PC (mac-022) is protected and cannot be selected.'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                        return;
-                      }
-                      setState(() {
-                        isSelected ? selected.remove(name) : selected.add(name);
-                      });
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: online
-                            ? Colors.green.shade600
-                            : Colors.red.shade600,
-                        borderRadius: BorderRadius.circular(14),
-                        border: isSelected
-                            ? Border.all(color: Colors.blueAccent, width: 3)
-                            : null,
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: Colors.blueAccent.withOpacity(0.6),
-                                  blurRadius: 8,
-                                ),
-                              ]
-                            : [],
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              name,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            if (isAdmin)
-                              const Padding(
-                                padding: EdgeInsets.only(top: 2),
-                                child: Text('Admin PC', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.yellowAccent)),
-                              ),
-                          ],
-                        ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: Column(
+                  children: [
+                    // STATUS SUMMARY (Inside constrained width)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                      child: Row(
+                        children: [
+                          Expanded(child: _statusBox('ONLINE', onlineCount, Colors.green)),
+                          const SizedBox(width: 20),
+                          Expanded(child: _statusBox('TOTAL', machines.length, Colors.blue)),
+                          const SizedBox(width: 20),
+                          Expanded(child: _statusBox('OFFLINE', offlineCount, Colors.red)),
+                        ],
                       ),
                     ),
-                  ),
-                );
-              },
+
+                    Expanded(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(12),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 6,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 1.15,
+                        ),
+                        itemCount: machines.length,
+                        itemBuilder: (context, i) {
+                          final name = machines[i];
+                          final online = status[name] ?? false;
+                          final isSelected = selected.contains(name);
+                          final isAdmin = name == 'mac-022';
+                          
+                          // Balanced gap in the middle
+                          double leftGap = 0;
+                          double rightGap = 0;
+                          if (i % 6 == 2) rightGap = 15.0; // Right side of 3rd card
+                          if (i % 6 == 3) leftGap = 15.0;  // Left side of 4th card
+
+                          return Padding(
+                            padding: EdgeInsets.only(left: leftGap, right: rightGap),
+                            child: GestureDetector(
+                              onTap: () {
+                                if (isAdmin) {
+                                  ScaffoldMessenger.of(context).clearSnackBars();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('🛡️ Admin PC (mac-022) is protected and cannot be selected.'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                setState(() {
+                                  isSelected ? selected.remove(name) : selected.add(name);
+                                });
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: online
+                                      ? Colors.green.shade600
+                                      : Colors.red.shade600,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: isSelected
+                                      ? Border.all(color: Colors.blueAccent, width: 3)
+                                      : null,
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.blueAccent.withOpacity(0.4),
+                                            blurRadius: 8,
+                                            spreadRadius: 1,
+                                          ),
+                                        ]
+                                      : [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.2),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                ),
+                                child: Center(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold, 
+                                              fontSize: 14,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          if (isAdmin)
+                                            Container(
+                                              margin: const EdgeInsets.only(top: 4),
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black26,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'ADMIN PC', 
+                                                style: TextStyle(
+                                                  fontSize: 9, 
+                                                  fontWeight: FontWeight.bold, 
+                                                  color: Colors.yellowAccent
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
 
