@@ -1,95 +1,86 @@
 <div align="center">
 
-# 🖥️ Mac Lab Dashboard
+# Mac Lab Dashboard
 
-### Visual Control Center for Your Mac Lab
+**A Flutter desktop app + FastAPI backend for managing Mac labs over SSH.**
 
-**A Flutter desktop app + FastAPI backend that gives you one-click control over your entire Mac lab.**
-
-Point. Click. Done. No terminal needed.
+No MDM. No agents. No cloud. No monthly fees.
 
 ---
 
-Built by **Pownkumar A** — Founder of [Korelium](https://korelium.org)
-
-*Last updated: May 6, 2026*
+Pownkumar A (Founder of Korelium) · Last updated: May 6, 2026
 
 </div>
 
 ---
 
-## 🤔 What is this?
+## What is this?
 
-This is the **GUI companion** to [labctl](https://github.com/iampownkumar/labctl) — the open-source Mac Lab CLI.
+This is the GUI companion to [labctl](https://github.com/iampownkumar/labctl) — a CLI tool for Mac lab management.
 
-While labctl gives you powerful terminal commands, this project wraps everything into a beautiful Flutter desktop app so you (or your non-technical staff) can manage the lab with zero command-line knowledge.
+While labctl gives you powerful terminal commands, this project wraps everything into a Flutter desktop app so anyone can manage the lab without touching a terminal.
 
-### What's inside?
+**What's inside:**
 
-| Component | Tech | Purpose |
+| Directory | Tech | Purpose |
 |---|---|---|
-| `mac-lab-backend/` | Python + FastAPI | REST API that bridges the Flutter app to labctl Fish commands |
-| `project_mac_lab/` | Flutter (macOS) | Native desktop app with dashboard, software installer, and settings |
+| `backend/` | Python + FastAPI | REST API that bridges the Flutter app to labctl |
+| `app/` | Flutter (macOS) | Native desktop app — dashboard, software installer, settings |
 
 ---
 
-## ✨ Features
+## Features
 
-### 🎛️ Dashboard — Lab at a Glance
-- **Live status grid** — See all 33+ machines with Online/Offline indicators
-- **One-click power controls** — Reboot, Shutdown, Sleep for individual or all machines
-- **Machine selection** — Click to select specific machines, then apply actions to the selection
+**Dashboard — Lab at a Glance**
+- Live status grid showing all machines with Online/Offline indicators
+- One-click power controls — Reboot, Shutdown, Sleep (individual or all)
+- Machine selection — click specific machines, then apply actions to the selection
 
-### 👤 User Management
-- **Create User** dialog — Username, password (with visibility toggle), admin switch
-- **Delete User** dialog — With secure home directory wipe warning
-- Works on single machines or the entire lab simultaneously
+**User Management**
+- Create User dialog with username, password (visibility toggle), and admin switch
+- Delete User dialog with secure home directory wipe
+- Works on single machines or the entire lab
 
-### 📦 Software Installation
-- **Multi-install page** — Select apps from a curated list and deploy to any machine
-- **Homebrew-powered** — Install casks (GUI apps) and formulas (CLI tools)
-- **Real-time streaming** — Watch installation progress live
+**Software Installation**
+- Multi-install page — select apps and deploy to any machine
+- Homebrew-powered — install casks (GUI apps) and formulas (CLI tools)
+- Real-time streaming — watch installation progress live
 
-### 🔐 Auto-Login Management
+**Auto-Login Management**
 - Enable/disable automatic login with password prompt
 - Lab-wide toggle with one click
 
-### 👀 Screen Monitoring
+**Screen Monitoring**
 - View any student's screen instantly via macOS Screen Sharing
 - Push your screen to students for presentations
 
-### ⚙️ Settings
-- Configure backend URL
-- Customize lab parameters
-
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
-1. **[labctl](https://github.com/iampownkumar/labctl)** installed and configured on the Admin Mac
-2. **Fish Shell** installed (`brew install fish`)
-3. **Python 3.9+** installed
-4. **Flutter 3.x** installed (for building the app from source)
+1. [labctl](https://github.com/iampownkumar/labctl) installed and configured on the Admin Mac
+2. Fish Shell installed (`brew install fish`)
+3. Python 3.9+
+4. Flutter 3.x (for building from source)
 5. All lab machines accessible via SSH (see labctl setup guide)
 
-> [!IMPORTANT]
-> **All lab machines must have the same admin username.** This is a requirement of labctl — it SSHs into every machine using the same username. Create this common account on every Mac during initial setup.
+> **Important:** All lab machines must have the same admin username. This is a requirement of labctl — it SSHs into every machine using the same username. Create this common account on every Mac during initial setup.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### Step 1: Clone the repo
+### 1. Clone the repo
 
 ```bash
-git clone https://github.com/iampownkumar/mac-os-monitering.git
-cd mac-os-monitering
+git clone https://github.com/iampownkumar/mac-os-monitering.git mac-lab-dashboard
+cd mac-lab-dashboard
 ```
 
-### Step 2: Start the Backend
+### 2. Start the Backend
 
 ```bash
-cd mac-lab-backend
+cd backend
 
 # Create a Python virtual environment
 python3 -m venv venv
@@ -108,84 +99,80 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 You should see:
 ```
 INFO:     Uvicorn running on http://127.0.0.1:8000
-INFO:     Started reloader process
 INFO:     Application startup complete.
 ```
 
-### Step 3: Build & Run the Flutter App
+### 3. Build and Run the Flutter App
 
-Open a **new terminal**:
+Open a new terminal:
 
 ```bash
-cd project_mac_lab
+cd app
 
 # Get dependencies
 flutter pub get
 
-# Install CocoaPods dependencies (macOS)
+# Install CocoaPods (macOS)
 cd macos && LANG=en_US.UTF-8 pod install && cd ..
 
 # Run the app
 flutter run -d macos
 ```
 
-The Mac Lab Dashboard will launch! 🎉
-
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-mac-os-monitering/
-├── mac-lab-backend/
-│   ├── main.py              # FastAPI server — all API endpoints
+mac-lab-dashboard/
+├── backend/
+│   ├── main.py              # FastAPI server with all endpoints
 │   ├── requirements.txt     # Python dependencies
-│   └── venv/                # Virtual environment (local only, gitignored)
+│   └── venv/                # Local only, gitignored
 │
-├── project_mac_lab/
+├── app/
 │   └── lib/
-│       ├── main.dart                    # App entry point + navigation
+│       ├── main.dart                    # Entry point + navigation
 │       ├── screens/
-│       │   ├── dashboard_page.dart      # Main dashboard — status grid + controls
-│       │   ├── multi_install_page.dart  # Software deployment page
-│       │   └── settings_page.dart       # Configuration page
+│       │   ├── dashboard_page.dart      # Status grid + controls
+│       │   ├── multi_install_page.dart  # Software deployment
+│       │   └── settings_page.dart       # Configuration
 │       └── services/
-│           ├── api_service.dart         # HTTP client for backend communication
-│           ├── brew_services.dart       # Homebrew service definitions
-│           └── config_service.dart      # App configuration persistence
+│           ├── api_service.dart         # HTTP client
+│           ├── brew_services.dart       # Homebrew definitions
+│           └── config_service.dart      # App config persistence
 │
+├── LICENSE
+├── README.md
 └── .gitignore
 ```
 
-### How it works
+**How it works:**
 
 ```
-┌─────────────────┐     HTTP/REST      ┌──────────────────┐     subprocess     ┌─────────────┐     SSH      ┌──────────┐
-│  Flutter App     │ ───────────────▶  │  FastAPI Backend   │ ──────────────▶  │  Fish Shell   │ ─────────▶ │  Lab Macs  │
-│  (macOS Desktop) │ ◀───────────────  │  (Python/Uvicorn)  │ ◀──────────────  │  (labctl)     │ ◀───────── │  (SSH)     │
-└─────────────────┘     JSON           └──────────────────┘     stdout         └─────────────┘            └──────────┘
+Flutter App  ──HTTP/REST──▶  FastAPI Backend  ──subprocess──▶  Fish Shell (labctl)  ──SSH──▶  Lab Macs
 ```
 
-1. **Flutter app** sends REST requests to the backend
-2. **FastAPI backend** translates requests into Fish shell commands
-3. **Fish shell** (labctl) executes SSH commands on the target machines
-4. **Results** flow back through the same chain
+1. Flutter app sends REST requests to the backend
+2. FastAPI translates requests into Fish shell commands
+3. Fish (labctl) executes SSH commands on target machines
+4. Results flow back through the same chain
 
 ---
 
-## 📡 API Endpoints
+## API Endpoints
 
 ### Status
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/status` | Get online/offline status of all machines |
+| `GET` | `/status` | Online/offline status of all machines |
 
 ### Power
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/reboot/{host}` | Reboot a specific machine |
+| `POST` | `/reboot/{host}` | Reboot a machine |
 | `POST` | `/reboot-all` | Reboot all machines |
-| `POST` | `/shutdown/{host}` | Shutdown a specific machine |
+| `POST` | `/shutdown/{host}` | Shutdown a machine |
 | `POST` | `/shutdown-all` | Shutdown all machines |
 
 ### User Management
@@ -194,7 +181,7 @@ mac-os-monitering/
 | `POST` | `/user/create/{host}` | `{username, password, admin}` | Create user on one machine |
 | `POST` | `/user/create-all` | `{username, password, admin}` | Create user on all machines |
 | `POST` | `/user/delete/{host}` | `{username}` | Delete user (secure wipe) |
-| `POST` | `/user/delete-all` | `{username}` | Delete user from all machines |
+| `POST` | `/user/delete-all` | `{username}` | Delete from all machines |
 | `GET` | `/user/list/{host}` | — | List users on a machine |
 | `GET` | `/user/list-all` | — | List users on all machines |
 
@@ -209,135 +196,93 @@ mac-os-monitering/
 ### Software
 | Method | Endpoint | Body | Description |
 |---|---|---|---|
-| `POST` | `/brew/install/{host}` | `{type, name}` | Install package on one machine |
+| `POST` | `/brew/install/{host}` | `{type, name}` | Install package |
 | `POST` | `/brew/install-all` | `{type, name}` | Install on all machines |
 
 ### Screen
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/screen/monitor/{host}` | Open screen viewer for a machine |
-| `POST` | `/screen/present` | Push admin screen to all students |
+| `POST` | `/screen/monitor/{host}` | Open screen viewer |
+| `POST` | `/screen/present` | Push admin screen to students |
 | `POST` | `/screen/stop-present` | Stop presentation mode |
 
 ---
 
-## 🔧 Configuration
+## FAQ
 
-### Backend Port
-The backend runs on `http://127.0.0.1:8000` by default. To change:
+**Do I need a static IP?**
+No. Everything runs on your local network using mDNS (`.local` hostnames).
 
-```bash
-uvicorn main:app --host 0.0.0.0 --port 9000 --reload
-```
+**Can non-technical staff use this?**
+Yes. The Flutter dashboard is point-and-click. No terminal knowledge needed.
 
-### Flutter App — Backend URL
-Go to **Settings** tab in the app and update the backend URL.
+**How many machines can it handle?**
+Tested with 33 machines. The parallel SSH architecture can handle 100+.
 
-Or edit `lib/services/config_service.dart` directly.
+**Does it work without internet?**
+Yes. Everything runs on your local network. Internet is only needed for initial setup.
 
----
-
-## ❓ FAQ
-
-### Do I need a static IP?
-**No.** Everything runs on your local network using mDNS (`.local` hostnames). Your college/school doesn't need a static IP.
-
-### Can non-technical staff use this?
-**Yes.** The Flutter dashboard is designed so anyone can point and click. No terminal knowledge needed.
-
-### How many machines can it handle?
-Tested with **33 machines**. The parallel SSH architecture can theoretically handle 100+ machines.
-
-### Does it work without internet?
-**Yes.** Everything runs on your local network. Internet is only needed for initial setup (cloning repos, installing dependencies).
-
-### Is it secure?
-- All communication happens over SSH (encrypted)
-- Passwords are base64-encoded during transport (not stored)
-- User deletion uses macOS `-secure` flag for complete data wipe
-- No data leaves your local network
+**Is it secure?**
+All communication happens over SSH (encrypted). Passwords are base64-encoded during transport. User deletion uses macOS `-secure` flag for complete data wipe. No data leaves your network.
 
 ---
 
-## 📄 License
+## Status: Active Development
 
-Copyright © 2026 **Pownkumar A** (Founder of Korelium)
+This project is under active development. I am testing new features in a live 33-machine Mac lab and adding capabilities as real-world problems arise.
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
-
-You are free to:
-- ✅ Use this software for personal and educational purposes
-- ✅ Modify and distribute under the same license
-- ✅ Use in your institution's Mac lab
-
-You must:
-- 📋 Include the original copyright notice
-- 📋 Disclose your source code if you modify and distribute
-- 📋 License derivatives under AGPL-3.0
-
-You may NOT:
-- ❌ Use this in a commercial product without permission
-- ❌ Remove the copyright or attribution
-- ❌ Offer this as a paid service without contacting the author
-
-For commercial licensing inquiries, contact: **Pownkumar A** at [Korelium](https://korelium.org)
-
----
-
-## 🚧 Status: Active Development
-
-> [!NOTE]
-> This project is under **active development**. I am testing new features in a live 33-machine Mac lab and adding capabilities as real-world problems arise.
-
-### 📅 Roadmap
+### Roadmap
 
 - [x] Power management (reboot, shutdown, sleep)
 - [x] Live status monitoring (online/offline)
 - [x] User management (create, delete, list)
 - [x] Software deployment via Homebrew
 - [x] Auto-login configuration
-- [x] Screen monitoring & presentation mode
+- [x] Screen monitoring and presentation mode
 - [ ] Desktop notifications from dashboard
 - [ ] System cleanup (remove exam files, reset machines)
 - [ ] Batch software uninstall
 - [ ] Machine health reports (disk space, memory)
-- [ ] **🎯 Ultimate Goal: Single macOS app** — Download one `.app`, enter your username and hostnames, and manage your entire lab. No terminal setup needed. Just enable SSH on your Macs once, and you're done.
+- [ ] **Ultimate Goal: Single macOS app** — Download one `.app`, enter your username and hostnames, and you're done. No terminal setup. Just enable SSH on your Macs once.
 
-### 📸 Screenshots & Demo
+### Screenshots and Demo
 
-Coming soon! I'll be recording a video walkthrough and adding screenshots of the dashboard in action with a live Mac lab.
-
----
-
-## 🤝 Contributing
-
-This project is open to contributions! Here's how you can help:
-
-- 🐛 **Report bugs** — Found something broken? Open an issue
-- 💡 **Request features** — Have an idea? I'd love to hear it
-- 🔧 **Submit PRs** — Code contributions are welcome
-- ⭐ **Star the repo** — It helps others discover this project
-
-I'm actively developing and testing, so I'll do my best to review and integrate contributions quickly.
+Coming soon. I'll be recording a video walkthrough and adding screenshots of the dashboard in action with a live lab.
 
 ---
 
-## 📝 Acknowledgments
+## Contributing
+
+This project is open to contributions:
+
+- **Report bugs** — Found something broken? Open an issue
+- **Request features** — Have an idea? I'd love to hear it
+- **Submit PRs** — Code contributions are welcome
+- **Star the repo** — It helps others discover this project
+
+I'm actively developing and testing, so I'll do my best to review contributions quickly.
+
+---
+
+## Acknowledgments
 
 This project was born out of necessity — managing a 33-machine Mac lab at a college with no budget for expensive MDM tools. Every feature exists because I faced that exact problem in real life.
 
 If you're a Mac lab admin struggling with the same issues, this project is for you.
 
-## 🔗 Related Projects
+---
 
-- **[labctl](https://github.com/iampownkumar/labctl)** — The CLI engine that powers this dashboard
+## License
+
+Copyright 2026 Pownkumar A (Founder of Korelium)
+
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE) for details.
+
+For commercial licensing inquiries, contact Pownkumar A at [Korelium](https://korelium.org).
 
 ---
 
-<div align="center">
+## Related Projects
 
-**Built with ❤️ for Mac Lab Admins everywhere**
+- [labctl](https://github.com/iampownkumar/labctl) — The CLI engine that powers this dashboard
 
-*If this saves you time, give it a ⭐ on GitHub!*
-
-</div>
